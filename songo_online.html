@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Songo — Multijoueur Distant (AJAX)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 16px;
+      font-family: 'Cinzel', serif;
+      user-select: none;
+      overflow-x: hidden;
+      background:
+        linear-gradient(rgba(10,4,0,0.72), rgba(10,4,0,0.72)),
+        radial-gradient(ellipse 80% 60% at 50% 0%, #c0520a 0%, #7a2800 40%, #1a0800 100%);
+      background-size: cover;
+      position: relative;
+    }
+    body::before {
+      content: '';
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background-image:
+        repeating-linear-gradient(45deg, rgba(180,90,10,0.07) 0px, rgba(180,90,10,0.07) 2px, transparent 2px, transparent 16px),
+        repeating-linear-gradient(-45deg, rgba(180,90,10,0.04) 0px, rgba(180,90,10,0.04) 2px, transparent 2px, transparent 16px);
+    }
+
+    .conteneur { width: 100%; max-width: 1100px; position: relative; z-index: 1; }
+
+    /* ── LOBBY ── */
+    #ecran-lobby {
+      position: fixed; inset: 0; z-index: 500;
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+      background:
+        linear-gradient(rgba(6,2,0,0.82), rgba(6,2,0,0.82)),
+        radial-gradient(ellipse 80% 60% at 50% 0%, #c0520a 0%, #7a2800 40%, #1a0800 100%);
+      transition: opacity 0.5s ease;
+    }
+    #ecran-lobby.cache { opacity: 0; pointer-events: none; }
+
+    .lobby-carte {
+      width: 100%; max-width: 480px;
+      background:
+        repeating-linear-gradient(180deg, transparent 0px, transparent 4px, rgba(0,0,0,0.06) 4px, rgba(0,0,0,0.06) 5px),
+        linear-gradient(160deg, #4a2208 0%, #2e1004 45%, #3c1a06 75%, #2a0e02 100%);
+      border-radius: 20px;
+      border: 2px solid rgba(120,56,10,0.7);
+      box-shadow: 0 30px 70px rgba(0,0,0,0.95), inset 0 1px 0 rgba(255,180,60,0.15);
+      padding: 36px 32px 32px;
+      text-align: center;
+      position: relative;
+    }
+    .lobby-carte::before {
+      content: ''; position: absolute; inset: 10px;
+      border-radius: 12px; border: 1px solid rgba(140,62,10,0.2); pointer-events: none;
+    }
+    .lobby-titre {
+      font-family: 'Cinzel Decorative', serif;
+      font-size: clamp(2.5rem, 9vw, 4rem); font-weight: 900; letter-spacing: 0.1em;
+      color: #f5d060;
+      text-shadow: 0 0 40px rgba(220,140,20,0.9), 0 2px 0 #7a3a00, 0 4px 14px rgba(0,0,0,0.8);
+      line-height: 1; margin-bottom: 6px;
+    }
+    .lobby-sous-titre {
+      font-size: 0.62rem; letter-spacing: 0.2em; color: #9a6828; text-transform: uppercase; margin-bottom: 6px;
+    }
+    .lobby-badge-reseau {
+      display: inline-block; background: rgba(0,180,80,0.15); border: 1px solid rgba(0,180,80,0.4);
+      color: #50d88a; font-size: 0.55rem; letter-spacing: 0.14em; text-transform: uppercase;
+      padding: 4px 12px; border-radius: 20px; margin-bottom: 20px;
+    }
+    .lobby-divider {
+      width: 70%; margin: 0 auto 24px;
+      height: 1px; background: linear-gradient(90deg, transparent, rgba(180,90,15,0.5), transparent);
+    }
+    .lobby-section-titre {
+      font-size: 0.6rem; letter-spacing: 0.18em; text-transform: uppercase; color: #8a6028;
+      margin-bottom: 12px; display: block;
+    }
+    .lobby-input {
+      width: 100%; padding: 11px 14px;
+      background: rgba(0,0,0,0.4); border: 1px solid rgba(120,60,10,0.6);
+      border-radius: 8px; color: #f0c060; font-family: 'Cinzel', serif;
+      font-size: 0.82rem; letter-spacing: 0.06em;
+      outline: none; margin-bottom: 10px;
+      transition: border-color 0.2s;
+    }
+    .lobby-input:focus { border-color: rgba(220,140,20,0.8); }
+    .lobby-input::placeholder { color: rgba(160,100,20,0.45); }
+    .lobby-btn {
+      width: 100%; font-family: 'Cinzel Decorative', serif;
+      font-size: 0.85rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+      color: #1a0800; border: none; border-radius: 10px; padding: 14px 20px;
+      cursor: pointer; position: relative; overflow: hidden;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,220,100,0.5);
+      transition: transform 0.12s, filter 0.12s; margin-bottom: 10px;
+    }
+    .lobby-btn.primaire {
+      background: linear-gradient(135deg, #e8a820 0%, #c07810 40%, #e8a820 70%, #f0c030 100%);
+    }
+    .lobby-btn.secondaire {
+      background: linear-gradient(135deg, #4a2208, #2e1004);
+      color: #d4980c; border: 1px solid rgba(180,90,10,0.5);
+    }
+    .lobby-btn:hover { filter: brightness(1.1); transform: translateY(-2px); }
+    .lobby-btn:active { transform: translateY(0); filter: brightness(0.95); }
+    .lobby-ou {
+      font-size: 0.6rem; letter-spacing: 0.2em; color: #5a3810; text-transform: uppercase;
+      margin: 4px 0 14px; position: relative;
+    }
+    .lobby-ou::before, .lobby-ou::after {
+      content: ''; position: absolute; top: 50%; width: 38%; height: 1px;
+      background: rgba(120,60,10,0.4);
+    }
+    .lobby-ou::before { left: 0; } .lobby-ou::after { right: 0; }
+
+    /* Rejoindre */
+    .lobby-rejoindre-row { display: flex; gap: 8px; }
+    .lobby-rejoindre-row .lobby-input { margin-bottom: 0; }
+    .lobby-rejoindre-row .lobby-btn { width: auto; padding: 11px 18px; font-size: 0.7rem; margin-bottom: 0; }
+
+    /* Message statut lobby */
+    #lobby-msg {
+      margin-top: 12px; font-size: 0.68rem; letter-spacing: 0.08em;
+      min-height: 20px; text-align: center;
+      color: #f0c060;
+    }
+    #lobby-msg.err { color: #f07060; }
+    #lobby-msg.ok  { color: #50d88a; }
+
+    /* Code de partie affiché */
+    .code-bloc {
+      display: none; margin: 14px 0 0;
+      background: rgba(0,0,0,0.35); border: 1px dashed rgba(200,130,20,0.5);
+      border-radius: 10px; padding: 14px 16px;
+    }
+    .code-bloc.visible { display: block; }
+    .code-label { font-size: 0.55rem; letter-spacing: 0.18em; text-transform: uppercase; color: #8a6028; margin-bottom: 6px; }
+    .code-valeur {
+      font-family: 'Cinzel Decorative', serif; font-size: 2.2rem; font-weight: 700;
+      color: #f5d060; letter-spacing: 0.14em;
+      text-shadow: 0 0 20px rgba(220,160,20,0.6);
+    }
+    .code-info { font-size: 0.58rem; letter-spacing: 0.08em; color: #7a5020; margin-top: 6px; }
+    .attente-spinner {
+      display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+      border: 2px solid rgba(200,130,20,0.3); border-top-color: #f0c060;
+      animation: spin 0.8s linear infinite; margin-right: 6px; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── BARRE DE STATUT RÉSEAU ── */
+    #barre-reseau {
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(0,0,0,0.5); border: 1px solid rgba(80,40,5,0.7);
+      border-radius: 10px; padding: 8px 16px; margin-bottom: 12px;
+      font-size: 0.58rem; letter-spacing: 0.1em;
+    }
+    .reseau-statut { display: flex; align-items: center; gap: 8px; }
+    .reseau-dot { width: 8px; height: 8px; border-radius: 50%; background: #888; flex-shrink: 0; }
+    .reseau-dot.connecte { background: #50d88a; box-shadow: 0 0 6px #50d88a; }
+    .reseau-dot.attente  { background: #f0c040; box-shadow: 0 0 6px #f0c040; animation: clignoter 1s ease-in-out infinite; }
+    .reseau-dot.erreur   { background: #f07060; box-shadow: 0 0 6px #f07060; }
+    @keyframes clignoter { 0%,100%{ opacity:1; } 50%{ opacity:0.3; } }
+    .reseau-texte { color: #9a7030; }
+    .reseau-game-id { font-family: 'Cinzel Decorative', serif; color: #c89030; letter-spacing: 0.14em; }
+    .reseau-joueur { color: #60b8f0; font-weight: 700; }
+    #btn-quitter-lobby {
+      font-family: 'Cinzel', serif; font-size: 0.55rem; letter-spacing: 0.1em; text-transform: uppercase;
+      color: #7a5020; background: transparent; border: 1px solid rgba(80,35,5,0.5);
+      padding: 4px 10px; border-radius: 6px; cursor: pointer; transition: all 0.15s;
+    }
+    #btn-quitter-lobby:hover { color: #f07060; border-color: rgba(200,80,40,0.5); }
+
+    /* ── OVERLAY "EN ATTENTE DE L'ADVERSAIRE" ── */
+    #overlay-attente {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(4,1,0,0.75); backdrop-filter: blur(3px);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.4s;
+    }
+    #overlay-attente.visible { opacity: 1; pointer-events: auto; }
+    .attente-card {
+      text-align: center; padding: 40px 36px;
+      background: linear-gradient(160deg, #3a1a04, #1e0c02);
+      border: 1px solid rgba(140,70,10,0.6); border-radius: 16px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+    }
+    .attente-icone { font-size: 3rem; margin-bottom: 14px; animation: fin-pulse 2s ease-in-out infinite; }
+    @keyframes fin-pulse { 0%,100%{transform:scale(1);}50%{transform:scale(1.08);} }
+    .attente-titre {
+      font-family: 'Cinzel Decorative', serif; font-size: 1.2rem; color: #f5c040;
+      letter-spacing: 0.08em; margin-bottom: 8px;
+    }
+    .attente-sous { font-size: 0.65rem; letter-spacing: 0.12em; color: #8a6028; }
+
+    /* ── REPRISE INTÉGRALE DU CSS DU JEU ORIGINAL ── */
+
+    .header-jeu {
+      display: grid; grid-template-columns: auto 1fr auto;
+      align-items: center; gap: 16px; margin-bottom: 14px; padding: 0 4px;
+    }
+    .header-col-gauche { text-align: left; }
+    .header-col-centre { text-align: center; }
+    .header-col-droite { text-align: right; }
+    .fait-par-label { font-size: 0.52rem; letter-spacing: 0.2em; text-transform: uppercase; color: #7a5820; margin-bottom: 2px; }
+    .fait-par-nom { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; color: #c89030; text-shadow: 0 0 10px rgba(200,140,20,0.4); }
+    .titre-songo {
+      font-family: 'Cinzel Decorative', serif;
+      font-size: clamp(2.8rem, 7vw, 5.5rem); font-weight: 900; letter-spacing: 0.08em;
+      color: #f5d080;
+      text-shadow: 0 0 40px rgba(220,140,20,0.9), 0 2px 0 #7a3a00, 0 4px 12px rgba(0,0,0,0.8), 2px 2px 0 #8b4a00;
+      line-height: 1;
+    }
+    .sous-titre { font-size: clamp(0.55rem, 1.3vw, 0.78rem); letter-spacing: 0.22em; color: #c8973a; text-transform: uppercase; margin-top: 6px; text-shadow: 0 1px 6px rgba(0,0,0,0.7); }
+    .mode-label { font-size: clamp(0.48rem, 1vw, 0.65rem); letter-spacing: 0.18em; color: #a07830; text-transform: uppercase; margin-top: 3px; }
+
+    #alerte-jeu {
+      display: none; text-align: center; margin: 0 0 14px; padding: 10px 20px;
+      border-radius: 10px; font-size: 0.78rem; letter-spacing: 0.08em;
+      background: rgba(160,60,0,0.35); border: 1px solid #c07020;
+      color: #f5c060; text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+    }
+
+    .barre-score {
+      display: grid; grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      background: linear-gradient(to bottom, #3a1a00, #200c00);
+      border: 2px solid #6b3a10; border-radius: 14px; padding: 14px 20px;
+      margin-bottom: 14px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,200,80,0.12);
+    }
+    .score-bloc { text-align: center; }
+    .score-nom { font-size: 0.58rem; letter-spacing: 0.2em; color: #8a6030; text-transform: uppercase; }
+    .score-valeur { font-family: 'Cinzel Decorative', serif; font-size: 2.4rem; font-weight: 700; color: #f5c040; text-shadow: 0 0 16px rgba(240,180,20,0.6), 0 2px 4px rgba(0,0,0,0.8); line-height: 1.1; }
+    .score-separateur { width: 1px; background: #5a2a08; align-self: stretch; margin: 0 20px; }
+    .tour-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: linear-gradient(135deg, #3d1e00, #1a0900);
+      border: 1px solid #7a4010; border-radius: 30px; padding: 8px 20px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,200,80,0.08);
+    }
+    .tour-badge-texte { font-size: clamp(0.65rem, 1.5vw, 0.9rem); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #f5c040; text-shadow: 0 0 10px rgba(240,180,20,0.5); }
+    .ornement { color: #a07030; font-size: 0.85em; }
+
+    .legende { display: flex; justify-content: space-between; padding: 0 8px; font-size: 0.52rem; letter-spacing: 0.15em; color: #7a5020; text-transform: uppercase; margin-bottom: 4px; }
+    .legende.bas { margin-top: 4px; margin-bottom: 0; }
+
+    #plateau-mbek {
+      position: relative; display: flex; flex-direction: column; gap: 0;
+      background:
+        repeating-linear-gradient(180deg, transparent 0px, transparent 3px, rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px, transparent 4px, transparent 9px, rgba(255,140,40,0.03) 9px, rgba(255,140,40,0.03) 10px),
+        repeating-linear-gradient(92deg, transparent 0px, transparent 18px, rgba(0,0,0,0.04) 18px, rgba(0,0,0,0.04) 19px),
+        linear-gradient(175deg, #5c2c0a 0%, #3e1c06 18%, #4a2208 35%, #2e1204 50%, #3a1a06 65%, #4e2409 80%, #2c1003 100%);
+      border: 0 solid transparent; border-radius: 8px; padding: 0;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.85), 0 8px 20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,180,60,0.18), inset 0 -1px 0 rgba(0,0,0,0.7);
+      overflow: hidden;
+    }
+    #plateau-mbek::before {
+      content: ''; position: absolute; inset: 0; border-radius: 8px; pointer-events: none; z-index: 10;
+      box-shadow: inset 0 0 0 3px rgba(120,60,10,0.9), inset 0 0 0 5px rgba(80,30,5,0.95), inset 0 0 0 7px rgba(160,80,15,0.4), inset 0 0 0 9px rgba(40,15,2,0.9), inset 0 6px 18px rgba(0,0,0,0.5), inset 0 -4px 12px rgba(0,0,0,0.4);
+    }
+    #plateau-mbek::after {
+      content: ''; position: absolute; inset: 9px; border-radius: 4px; pointer-events: none; z-index: 11;
+      background: repeating-linear-gradient(90deg, transparent 0px, transparent 10px, rgba(80,35,5,0.6) 10px, rgba(80,35,5,0.6) 11px, transparent 11px, transparent 20px, rgba(100,50,8,0.4) 20px, rgba(100,50,8,0.4) 21px);
+      border: 1px solid rgba(100,50,8,0.35);
+      box-shadow: inset 0 1px 0 rgba(180,90,15,0.2), inset 0 -1px 0 rgba(0,0,0,0.4);
+    }
+    .plateau-interieur { position: relative; z-index: 5; margin: 14px 16px; display: flex; flex-direction: row; gap: 10px; align-items: stretch; }
+    .reserve {
+      width: 90px; flex-shrink: 0; border-radius: 5px; position: relative;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+      overflow: hidden;
+      background: radial-gradient(ellipse 80% 60% at 50% 70%, #050100 0%, #0e0500 35%, #1c0a02 60%, #2e1408 85%, #3c1c0c 100%);
+      box-shadow: inset 0 12px 32px rgba(0,0,0,0.97), inset 0 4px 14px rgba(0,0,0,0.9), inset 4px 0 12px rgba(0,0,0,0.6), inset -4px 0 12px rgba(0,0,0,0.5), inset 0 -3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(180,90,20,0.3), inset 0 -1px 0 rgba(100,50,10,0.15);
+      border: 1.5px solid rgba(60,25,5,0.95); border-top-color: rgba(150,70,15,0.45); border-bottom-color: rgba(15,6,1,0.95);
+      padding: 8px 6px 10px; gap: 4px;
+    }
+    .reserve::before { content: ''; position: absolute; inset: 0; border-radius: 9px; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(30,12,2,0.8); }
+    .reserve-label { font-size: 6.5px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(200,130,30,0.6); white-space: nowrap; text-align: center; pointer-events: none; line-height: 1.2; }
+    .reserve-count { font-family: 'Cinzel Decorative', serif; font-size: 1.3rem; font-weight: 700; color: #d4980c; text-shadow: 0 0 10px rgba(210,150,10,0.6), 0 2px 4px rgba(0,0,0,0.9); pointer-events: none; line-height: 1; }
+    .reserve-sep { width: 80%; height: 1px; background: linear-gradient(90deg, transparent, rgba(140,70,10,0.4), transparent); margin: 2px 0; flex-shrink: 0; }
+    .reserve-billes { flex: 1; width: 100%; display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: center; gap: 3px; padding: 4px 2px 2px; pointer-events: none; overflow: hidden; }
+    .reserve .bille-visuelle { position: relative; width: 16px; height: 16px; transform: none !important; }
+
+    .rangees-zone {
+      flex: 1; display: flex; flex-direction: column; gap: 0;
+      background:
+        repeating-linear-gradient(180deg, transparent 0px, transparent 5px, rgba(0,0,0,0.05) 5px, rgba(0,0,0,0.05) 6px),
+        linear-gradient(160deg, #4a2008 0%, #2e1004 40%, #3c1a06 70%, #2a0e02 100%);
+      border-radius: 4px;
+      box-shadow: inset 0 3px 12px rgba(0,0,0,0.7), inset 0 -2px 8px rgba(0,0,0,0.5), 0 1px 0 rgba(180,90,20,0.2);
+    }
+    .rangee { display: flex; gap: 8px; padding: 12px 12px; }
+    .rangee.haut { flex-direction: row-reverse; }
+
+    .separateur {
+      position: relative; height: 28px; margin: 0 12px;
+      background:
+        repeating-linear-gradient(90deg, transparent 0px, transparent 6px, rgba(0,0,0,0.08) 6px, rgba(0,0,0,0.08) 7px),
+        linear-gradient(to bottom, #1a0800 0%, #0e0400 20%, #160700 50%, #0a0300 80%, #1a0800 100%);
+      border-radius: 3px;
+      box-shadow: 0 -2px 0 rgba(180,90,20,0.15), 0 -1px 0 rgba(0,0,0,0.8), 0 2px 0 rgba(0,0,0,0.9), 0 1px 0 rgba(0,0,0,0.6), inset 0 2px 8px rgba(0,0,0,0.9), inset 0 -1px 4px rgba(0,0,0,0.7);
+    }
+    .separateur::before { content: ''; position: absolute; inset: 3px 0; background: linear-gradient(to bottom, rgba(255,140,30,0.04) 0%, transparent 40%, rgba(255,140,30,0.02) 100%); border-radius: 2px; }
+
+    .trou {
+      flex: 1; height: 134px; border-radius: 5px; position: relative;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden; transition: transform 0.14s ease, box-shadow 0.14s ease; cursor: not-allowed;
+      background: radial-gradient(ellipse 75% 55% at 50% 65%, #050100 0%, #0e0500 30%, #1a0900 55%, #2a1206 80%, #3a1c0a 100%);
+      box-shadow: inset 0 10px 28px rgba(0,0,0,0.97), inset 0 4px 12px rgba(0,0,0,0.9), inset 6px 0 14px rgba(0,0,0,0.6), inset -6px 0 14px rgba(0,0,0,0.5), inset 0 -4px 10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(180,90,20,0.35), inset 0 -1px 0 rgba(100,50,10,0.2);
+      border: 1.5px solid rgba(80,35,8,0.9); border-top-color: rgba(160,75,15,0.5); border-bottom-color: rgba(20,8,2,0.95);
+    }
+    .trou::before { content: ''; position: absolute; inset: 0; border-radius: 4px; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(40,18,4,0.8), inset 0 2px 0 rgba(255,150,40,0.08); }
+
+    .trou.jouable-j1 { cursor: pointer; box-shadow: inset 0 10px 28px rgba(0,0,0,0.85), inset 0 4px 12px rgba(0,0,0,0.7), inset 6px 0 14px rgba(0,0,0,0.5), inset -6px 0 14px rgba(0,0,0,0.4), inset 0 -4px 10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(240,170,40,0.55), inset 0 -1px 0 rgba(180,90,20,0.3), 0 0 0 2px rgba(220,140,20,0.45), 0 0 10px rgba(220,140,20,0.2); }
+    .trou.jouable-j2 { cursor: pointer; box-shadow: inset 0 10px 28px rgba(0,0,0,0.85), inset 0 4px 12px rgba(0,0,0,0.7), inset 6px 0 14px rgba(0,0,0,0.5), inset -6px 0 14px rgba(0,0,0,0.4), inset 0 -4px 10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(80,160,240,0.5), inset 0 -1px 0 rgba(50,120,200,0.3), 0 0 0 2px rgba(60,130,220,0.45), 0 0 10px rgba(60,130,220,0.2); }
+    .trou.jouable-j1:hover { transform: translateY(-2px); box-shadow: inset 0 8px 22px rgba(0,0,0,0.8), inset 0 3px 10px rgba(0,0,0,0.65), inset 5px 0 12px rgba(0,0,0,0.45), inset -5px 0 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,190,50,0.65), 0 0 0 2px rgba(230,160,20,0.7), 0 4px 18px rgba(200,130,10,0.35); }
+    .trou.jouable-j2:hover { transform: translateY(-2px); box-shadow: inset 0 8px 22px rgba(0,0,0,0.8), inset 0 3px 10px rgba(0,0,0,0.65), inset 5px 0 12px rgba(0,0,0,0.45), inset -5px 0 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(100,180,255,0.65), 0 0 0 2px rgba(60,140,230,0.7), 0 4px 18px rgba(40,120,220,0.35); }
+    .trou.protegee::after { content: '★'; position: absolute; top: 4px; right: 5px; font-size: 8px; color: rgba(200,120,10,0.45); pointer-events: none; }
+
+    .compteur { position: absolute; top: 5px; left: 5px; font-size: 9px; font-weight: 700; color: rgba(220,160,40,0); letter-spacing: 0.06em; pointer-events: none; transition: opacity 0.15s; }
+    .trou:hover .compteur { opacity: 1; }
+    .trou .label-c1 { position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); font-size: 7px; color: rgba(180,90,10,0.5); font-weight: 700; pointer-events: none; letter-spacing: 0.12em; }
+    .trou .graines-wrapper { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+
+    .bille-visuelle {
+      width: 20px; height: 20px; border-radius: 50%; position: absolute;
+      background: radial-gradient(circle at 38% 32%, #c8964a 0%, #9a6828 18%, #7a4e18 35%, #5a3410 55%, #3c2008 75%, #200e02 100%);
+      box-shadow: 2px 4px 7px rgba(0,0,0,0.85), 1px 2px 3px rgba(0,0,0,0.7), inset -3px -4px 8px rgba(0,0,0,0.8), inset 2px 2px 5px rgba(255,210,120,0.3), inset -1px -1px 3px rgba(0,0,0,0.5);
+    }
+    .bille-visuelle::after { content: ''; position: absolute; top: 3px; left: 4px; width: 7px; height: 5px; border-radius: 50%; background: radial-gradient(ellipse, rgba(255,240,190,0.65) 0%, rgba(255,220,150,0.2) 60%, transparent 100%); filter: blur(0.8px); transform: rotate(-20deg); }
+    .bille-visuelle::before { content: ''; position: absolute; top: 8px; left: 3px; width: 14px; height: 4px; border-radius: 50%; background: transparent; border-top: 1px solid rgba(0,0,0,0.3); transform: rotate(-15deg); }
+
+    footer { display: flex; justify-content: center; align-items: center; margin-top: 14px; gap: 14px; }
+    .citation-wrapper { flex: 1; text-align: center; }
+    .citation { font-size: 0.72rem; font-style: italic; color: #b08040; letter-spacing: 0.06em; }
+    .btn-reset { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #f5c060; background: linear-gradient(135deg, #3d1800, #1a0800); border: 1px solid #7a3a10; padding: 10px 22px; border-radius: 10px; cursor: pointer; transition: background 0.2s, box-shadow 0.2s; box-shadow: 0 2px 10px rgba(0,0,0,0.5); white-space: nowrap; }
+    .btn-reset:hover { background: linear-gradient(135deg, #5a2800, #2a1000); box-shadow: 0 0 14px rgba(200,100,20,0.4); }
+
+    #animation-container { position: absolute; inset: 0; pointer-events: none; z-index: 50; }
+
+    #ecran-jeu { opacity: 0; transform: scale(0.97); transition: opacity 0.6s ease, transform 0.6s ease; pointer-events: none; }
+    #ecran-jeu.visible { opacity: 1; transform: scale(1); pointer-events: auto; }
+
+    /* Fin de partie */
+    #ecran-fin { position: fixed; inset: 0; z-index: 300; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(4,1,0,0.88); backdrop-filter: blur(6px); opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
+    #ecran-fin.visible { opacity: 1; pointer-events: auto; }
+    .fin-carte { width: 100%; max-width: 560px; background: repeating-linear-gradient(180deg, transparent 0px, transparent 4px, rgba(0,0,0,0.07) 4px, rgba(0,0,0,0.07) 5px), linear-gradient(160deg, #4e2409 0%, #311204 45%, #3e1a06 75%, #2a0d02 100%); border-radius: 22px; border: 2px solid rgba(130,62,10,0.75); box-shadow: 0 40px 80px rgba(0,0,0,0.95), inset 0 1px 0 rgba(255,190,60,0.18), inset 0 0 0 1px rgba(70,28,4,0.9); padding: 44px 40px 38px; position: relative; overflow: hidden; text-align: center; transform: scale(0.92) translateY(20px); transition: transform 0.5s cubic-bezier(0.34,1.56,0.64,1); }
+    #ecran-fin.visible .fin-carte { transform: scale(1) translateY(0); }
+    .fin-carte::before { content: ''; position: absolute; inset: 10px; border-radius: 14px; border: 1px solid rgba(150,68,10,0.22); pointer-events: none; }
+    .fin-divider { width: 80%; margin: 0 auto 28px; height: 1px; background: linear-gradient(90deg, transparent, rgba(190,100,15,0.55), transparent); }
+    .fin-icone { font-size: 4rem; line-height: 1; margin-bottom: 10px; filter: drop-shadow(0 0 18px rgba(220,160,20,0.7)); animation: fin-pulse 2s ease-in-out infinite; }
+    .fin-titre { font-family: 'Cinzel Decorative', serif; font-size: clamp(1.5rem, 4vw, 2.2rem); font-weight: 900; letter-spacing: 0.06em; color: #f5d060; text-shadow: 0 0 30px rgba(220,160,20,0.8), 0 2px 0 #7a3a00, 0 4px 12px rgba(0,0,0,0.8); margin-bottom: 6px; }
+    .fin-raison { font-size: 0.68rem; letter-spacing: 0.14em; color: #9a6828; text-transform: uppercase; margin-bottom: 30px; }
+    .fin-scores { display: flex; align-items: center; gap: 0; margin-bottom: 32px; border-radius: 12px; overflow: hidden; border: 1px solid rgba(80,35,6,0.8); box-shadow: 0 4px 16px rgba(0,0,0,0.5); }
+    .fin-score-bloc { flex: 1; padding: 18px 14px 14px; text-align: center; position: relative; }
+    .fin-score-bloc.gagnant { background: linear-gradient(160deg, #3a1c04, #1e0d02); }
+    .fin-score-bloc.perdant { background: linear-gradient(160deg, #1e0d02, #120700); opacity: 0.75; }
+    .fin-score-bloc.nul { background: linear-gradient(160deg, #2a1404, #160900); }
+    .fin-score-sep { width: 1px; background: rgba(80,35,6,0.8); align-self: stretch; }
+    .fin-score-nom { font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase; color: #8a6028; margin-bottom: 4px; }
+    .fin-score-valeur { font-family: 'Cinzel Decorative', serif; font-size: 2.8rem; font-weight: 700; line-height: 1; color: #f0c040; text-shadow: 0 0 20px rgba(220,160,10,0.6), 0 2px 6px rgba(0,0,0,0.8); }
+    .fin-score-sur40 { font-size: 0.5rem; letter-spacing: 0.14em; color: rgba(160,100,20,0.5); text-transform: uppercase; margin-top: 4px; }
+    .fin-couronne { font-size: 1.4rem; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); filter: drop-shadow(0 2px 6px rgba(200,140,20,0.6)); }
+    .fin-actions { display: flex; gap: 12px; justify-content: center; }
+    .btn-fin { font-family: 'Cinzel', serif; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 14px 24px; border-radius: 10px; cursor: pointer; transition: all 0.15s; }
+    .btn-fin-rejouer { background: linear-gradient(135deg, #e8a820, #c07810); color: #1a0800; border: none; box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
+    .btn-fin-rejouer:hover { filter: brightness(1.1); transform: translateY(-2px); }
+    .btn-fin-accueil { background: linear-gradient(135deg, #3d1800, #1a0800); color: #d4980c; border: 1px solid rgba(180,90,10,0.5); }
+    .btn-fin-accueil:hover { background: linear-gradient(135deg, #5a2800, #2a1000); }
+
+    .fin-billes-deco { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: -1; }
+    .fin-bille-deco { position: absolute; width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 38% 32%, #c8964a 0%, #7a4e18 35%, #200e02 100%); animation: monter 8s ease-in infinite; opacity: 0.6; }
+    @keyframes monter { 0%{transform:translateY(0) rotate(0);opacity:0.6;} 100%{transform:translateY(-120vh) rotate(360deg);opacity:0;} }
+
+    /* Règles */
+    #ecran-regles { position: fixed; inset: 0; z-index: 400; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(4,1,0,0.88); backdrop-filter: blur(6px); opacity: 0; pointer-events: none; transition: opacity 0.4s; overflow-y: auto; }
+    #ecran-regles.visible { opacity: 1; pointer-events: auto; }
+    .regles-carte { width: 100%; max-width: 680px; background: linear-gradient(160deg, #4a2208 0%, #2e1004 45%, #3c1a06 75%, #2a0e02 100%); border-radius: 20px; border: 2px solid rgba(120,56,10,0.7); box-shadow: 0 30px 70px rgba(0,0,0,0.95); padding: 36px 32px 32px; position: relative; }
+    .regles-fermer { position: absolute; top: 14px; right: 16px; background: transparent; border: 1px solid rgba(120,60,10,0.5); color: #9a6828; font-size: 1rem; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+    .regles-fermer:hover { color: #f5c040; border-color: rgba(220,140,20,0.7); }
+    .regles-header { text-align: center; margin-bottom: 20px; }
+    .regles-titre-principal { font-family: 'Cinzel Decorative', serif; font-size: 2.2rem; color: #f5d060; }
+    .regles-sous-titre { font-size: 0.6rem; letter-spacing: 0.2em; color: #9a6828; text-transform: uppercase; margin-top: 4px; }
+    .regles-divider { width: 60%; margin: 12px auto 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(180,90,15,0.5), transparent); }
+    .regles-section { margin-bottom: 16px; }
+    .regles-section-titre { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #c89030; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+    .regles-icone { font-size: 1rem; }
+    .regles-texte { font-size: 0.7rem; line-height: 1.7; color: #c09050; letter-spacing: 0.04em; }
+    .regles-liste { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .regles-liste li { font-size: 0.68rem; line-height: 1.65; color: #b08040; letter-spacing: 0.04em; display: flex; gap: 8px; align-items: flex-start; }
+    .tag { display: inline-block; font-size: 0.5rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; flex-shrink: 0; margin-top: 2px; }
+    .tag-regle { background: rgba(200,130,20,0.2); color: #d4980c; border: 1px solid rgba(200,130,20,0.35); }
+    .tag-interdit { background: rgba(200,60,40,0.2); color: #e07060; border: 1px solid rgba(200,60,40,0.35); }
+    .tag-fin { background: rgba(60,160,80,0.2); color: #60c878; border: 1px solid rgba(60,160,80,0.35); }
+    .regles-plateau-mini { background: rgba(0,0,0,0.3); border: 1px solid rgba(100,50,10,0.4); border-radius: 10px; padding: 12px; margin: 12px 0; }
+    .regles-rangee-label { font-size: 0.52rem; letter-spacing: 0.1em; color: #7a5020; text-align: center; margin: 4px 0; }
+    .regles-rangee-mini { display: flex; gap: 4px; justify-content: center; margin: 6px 0; }
+    .regles-case-mini { width: 36px; height: 24px; border-radius: 4px; background: rgba(30,12,2,0.8); border: 1px solid rgba(80,40,8,0.6); display: flex; align-items: center; justify-content: center; font-size: 0.5rem; color: #8a6028; letter-spacing: 0.06em; }
+    .regles-case-mini.protegee { border-color: rgba(200,130,20,0.5); color: #d4980c; }
+  </style>
+</head>
+<body>
+
+<!-- ═══ LOBBY ═══ -->
+<div id="ecran-lobby">
+  <div class="lobby-carte">
+    <div class="lobby-titre">SONGO</div>
+    <div class="lobby-sous-titre">Multijoueur en ligne</div>
+    <div class="lobby-badge-reseau">🌐 Mode Réseau — AJAX</div>
+    <div class="lobby-divider"></div>
+
+    <span class="lobby-section-titre">Votre nom</span>
+    <input class="lobby-input" id="lobby-nom" type="text" maxlength="20" autocomplete="off" placeholder="Entrez votre nom…">
+
+    <span class="lobby-section-titre" style="margin-top:4px;">Adresse du serveur</span>
+    <input class="lobby-input" id="lobby-serveur" type="text" autocomplete="off" value="http://localhost:3000" placeholder="http://localhost:3000">
+
+    <button class="lobby-btn primaire" id="btn-creer">✦ Créer une partie</button>
+    <div class="lobby-ou">ou</div>
+
+    <span class="lobby-section-titre">Rejoindre une partie existante</span>
+    <div class="lobby-rejoindre-row">
+      <input class="lobby-input" id="lobby-code" type="text" maxlength="8" autocomplete="off" placeholder="Code de la partie…" style="text-transform:uppercase; letter-spacing:0.2em;">
+      <button class="lobby-btn secondaire" id="btn-rejoindre">Rejoindre →</button>
+    </div>
+
+    <div id="lobby-msg"></div>
+
+    <!-- Bloc affiché après création : code à partager -->
+    <div class="code-bloc" id="code-bloc">
+      <div class="code-label">Partagez ce code avec votre adversaire</div>
+      <div class="code-valeur" id="code-valeur">——</div>
+      <div class="code-info"><span class="attente-spinner"></span>En attente de l'adversaire…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ OVERLAY "ATTENTE DE L'ADVERSAIRE" (in-game) ═══ -->
+<div id="overlay-attente">
+  <div class="attente-card">
+    <div class="attente-icone">⏳</div>
+    <div class="attente-titre">Tour de votre adversaire</div>
+    <div class="attente-sous" id="attente-nom">En attente…</div>
+  </div>
+</div>
+
+<!-- ═══ ÉCRAN DE JEU ═══ -->
+<div id="ecran-jeu">
+<div class="conteneur">
+
+  <!-- Barre réseau -->
+  <div id="barre-reseau">
+    <div class="reseau-statut">
+      <div class="reseau-dot connecte" id="reseau-dot"></div>
+      <span class="reseau-texte" id="reseau-texte">Connecté</span>
+      &nbsp;·&nbsp;
+      <span class="reseau-texte">Partie&nbsp;</span>
+      <span class="reseau-game-id" id="reseau-game-id">——</span>
+      &nbsp;·&nbsp;
+      <span class="reseau-texte">Vous êtes&nbsp;</span>
+      <span class="reseau-joueur" id="reseau-joueur-label">——</span>
+    </div>
+    <button id="btn-quitter-lobby">✕ Quitter</button>
+  </div>
+
+  <!-- Header -->
+  <div class="header-jeu">
+    <div class="header-col-gauche">
+      <div class="fait-par-label">Joueur</div>
+      <div class="fait-par-nom" id="fait-par-nom">—</div>
+    </div>
+    <div class="header-col-centre">
+      <div class="titre-songo">SONGO</div>
+      <div class="sous-titre">Jeu Traditionnel Africain</div>
+      <div class="mode-label" id="mode-label-noms">En ligne</div>
+    </div>
+    <div class="header-col-droite">
+      <button class="btn-reset" id="btn-regles-jeu">📜 Règles</button>
+    </div>
+  </div>
+
+  <div id="alerte-jeu"></div>
+
+  <!-- Barre de score -->
+  <div class="barre-score">
+    <div class="score-bloc">
+      <div class="score-nom" id="score-nom-j2">Joueur 2 (Haut)</div>
+      <div class="score-valeur" id="score-j2">0</div>
+    </div>
+    <div class="score-separateur"></div>
+    <div style="text-align:center;">
+      <div class="tour-badge">
+        <span class="ornement">❧</span>
+        <span class="tour-badge-texte" id="statut-tour">Tour J1</span>
+        <span class="ornement">❧</span>
+      </div>
+    </div>
+    <div class="score-separateur"></div>
+    <div class="score-bloc">
+      <div class="score-nom" id="score-nom-j1">Joueur 1 (Bas)</div>
+      <div class="score-valeur" id="score-j1">0</div>
+    </div>
+  </div>
+
+  <!-- Légendes -->
+  <div class="legende">
+    <span id="legende-haut-gauche">← C7</span>
+    <span id="legende-haut-nom">Joueur 2 (Haut)</span>
+    <span id="legende-haut-droite">C1★ →</span>
+  </div>
+
+  <!-- Plateau -->
+  <div id="plateau-mbek">
+    <div class="plateau-interieur">
+      <div class="reserve" id="reserve-j2">
+        <div class="reserve-label" id="reserve-label-j2">J2<br>captures</div>
+        <div class="reserve-count" id="reserve-count-j2">0</div>
+        <div class="reserve-sep"></div>
+        <div class="reserve-billes" id="reserve-billes-j2"></div>
+      </div>
+      <div class="rangees-zone">
+        <div class="rangee haut" id="rangee-haut">
+          <div class="trou protegee" id="trou-13" data-index="13"><div class="graines-wrapper"></div><div class="compteur">5</div><div class="label-c1">C1</div></div>
+          <div class="trou" id="trou-12" data-index="12"><div class="graines-wrapper"></div><div class="compteur">5</div></div>
+          <div class="trou" id="trou-11" data-index="11"><div class="graines-wrapper"></div><div class="compteur">5</div></div>
+          <div class="trou" id="trou-10" data-index="10"><div class="graines-wrapper"></div><div class="compteur">5</div></div>
+          <div class="trou" id="trou-9"  data-index="9" ><div class="graines-wrapper"></div><div class="compteur">5</div></div>
+          <div class="trou" id="trou-8"  data-index="8" ><div class="graines-wrapper"></div><div class="compteur">5</div></div>
+          <div class="trou" id="trou-7"  data-index="7" ><div class="graines-wrapper"></div><div class="compteur">5</div></div>
+        </div>
+        <div class="separateur"></div>
+        <div class="rangee bas" id="rangee-bas">
+          <div class="trou protegee" id="trou-0" data-index="0"><div class="graines-wrapper"></div><div class="compteur">5</div><div class="label-c1">C1</div></div>
+          <div class="trou" id="trou-1" data-index="1"><div class="graines-wrapper"></div><div class="compteur">5</div></div>
+          <div class="trou" id="trou-2" data-index="2"><div class="graines-wrapper"></div><div class="compteur">5</div></div>
+          <div class="trou" id="trou-3" data-index="3"><div class="graines-wrapper"></div><div class="compteur">5</div></div>
+          <div class="trou" id="trou-4" data-index="4"><div class="graines-wrapper"></div><div class="compteur">5</div></div>
+          <div class="trou" id="trou-5" data-index="5"><div class="graines-wrapper"></div><div class="compteur">5</div></div>
+          <div class="trou" id="trou-6" data-index="6"><div class="graines-wrapper"></div><div class="compteur">5</div></div>
+        </div>
+      </div>
+      <div class="reserve" id="reserve-j1">
+        <div class="reserve-label" id="reserve-label-j1">J1<br>captures</div>
+        <div class="reserve-count" id="reserve-count-j1">0</div>
+        <div class="reserve-sep"></div>
+        <div class="reserve-billes" id="reserve-billes-j1"></div>
+      </div>
+    </div>
+    <div id="animation-container"></div>
+  </div>
+
+  <div class="legende bas">
+    <span id="legende-bas-gauche">C1★ ←</span>
+    <span id="legende-bas-nom">Joueur 1 (Bas)</span>
+    <span id="legende-bas-droite">C7 →</span>
+  </div>
+
+  <footer>
+    <div class="citation-wrapper">
+      <div class="citation">« Le Songo, miroir de l'intelligence humaine »</div>
+    </div>
+    <button class="btn-reset" id="btn-reset">↺ Rejouer</button>
+  </footer>
+
+</div>
+</div><!-- fin #ecran-jeu -->
+
+<!-- ═══ ÉCRAN FIN ═══ -->
+<div id="ecran-fin">
+  <div class="fin-carte">
+    <div class="fin-billes-deco" id="fin-billes-deco"></div>
+    <div class="fin-icone" id="fin-icone">🏆</div>
+    <div class="fin-titre" id="fin-titre">Victoire !</div>
+    <div class="fin-raison" id="fin-raison"></div>
+    <div class="fin-divider"></div>
+    <div class="fin-scores">
+      <div class="fin-score-bloc" id="fin-bloc-j2">
+        <div class="fin-score-nom" id="fin-nom-j2">Joueur 2</div>
+        <div class="fin-score-valeur" id="fin-val-j2">0</div>
+        <div class="fin-score-sur40">/ 70 graines</div>
+      </div>
+      <div class="fin-score-sep"></div>
+      <div class="fin-score-bloc" id="fin-bloc-j1">
+        <div class="fin-score-nom" id="fin-nom-j1">Joueur 1</div>
+        <div class="fin-score-valeur" id="fin-val-j1">0</div>
+        <div class="fin-score-sur40">/ 70 graines</div>
+      </div>
+    </div>
+    <div class="fin-actions">
+      <button class="btn-fin btn-fin-rejouer" id="btn-fin-rejouer">↺ Rejouer</button>
+      <button class="btn-fin btn-fin-accueil" id="btn-fin-accueil">← Lobby</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ÉCRAN RÈGLES ═══ -->
+<div id="ecran-regles">
+  <div class="regles-carte">
+    <button class="regles-fermer" id="btn-fermer-regles">✕</button>
+    <div class="regles-header">
+      <div class="regles-titre-principal">SONGO</div>
+      <div class="regles-sous-titre">Règles du jeu — Version Ewondo &amp; Bulu</div>
+      <div class="regles-divider"></div>
+    </div>
+    <div class="regles-section">
+      <div class="regles-section-titre"><span class="regles-icone">🌍</span> Le Jeu</div>
+      <div class="regles-texte">Le Songo est un jeu de semailles traditionnel des peuples Ekang (Cameroun, Gabon, Guinée Équatoriale). 2 joueurs, 14 cases, 70 graines au départ (5 par case).</div>
+    </div>
+    <div class="regles-section">
+      <div class="regles-section-titre"><span class="regles-icone">🤲</span> Distribution</div>
+      <ul class="regles-liste">
+        <li><span class="tag tag-regle">Base</span>Ramassez toutes les graines d'une de vos cases, semez-les une par une dans le sens du jeu.</li>
+        <li><span class="tag tag-regle">Tour complet</span>Si plus de 13 graines, vous sautez la case de départ.</li>
+      </ul>
+    </div>
+    <div class="regles-section">
+      <div class="regles-section-titre"><span class="regles-icone">🌾</span> Captures</div>
+      <ul class="regles-liste">
+        <li><span class="tag tag-regle">Prise</span>La dernière graine atterrit dans une case adverse à 1, 2 ou 3 graines → vous capturez tout (2 à 4).</li>
+        <li><span class="tag tag-regle">Chaîne</span>Si la case précédente est aussi adverse et contient 2–4 graines, vous capturez aussi.</li>
+        <li><span class="tag tag-regle">C1★</span>Pas de capture directe sur la case 1 adverse. Exception : fin de tour complet → 1 graine seulement.</li>
+      </ul>
+    </div>
+    <div class="regles-section">
+      <div class="regles-section-titre"><span class="regles-icone">🤝</span> Solidarité</div>
+      <ul class="regles-liste">
+        <li><span class="tag tag-regle">Obligation</span>Camp adverse vide → vous devez l'alimenter.</li>
+        <li><span class="tag tag-regle">Minimum</span>Si possible, envoyez au moins 7 graines.</li>
+      </ul>
+    </div>
+    <div class="regles-section">
+      <div class="regles-section-titre"><span class="regles-icone">🏁</span> Fin</div>
+      <ul class="regles-liste">
+        <li><span class="tag tag-fin">Victoire</span>40 graines capturées = victoire.</li>
+        <li><span class="tag tag-fin">Fin</span>Moins de 10 graines sur le plateau → chacun récupère son camp.</li>
+        <li><span class="tag tag-fin">Nul</span>Aucun joueur n'atteint 40 → match nul.</li>
+      </ul>
+    </div>
+    <div style="text-align:center;margin-top:16px;">
+      <button class="btn-fin btn-fin-rejouer" id="btn-fermer-regles-bas" style="max-width:220px;">✕ Fermer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════════
+// SONGO — CLIENT AJAX (multijoueur réseau)
+// ══════════════════════════════════════════════════════════════════════════════
+
+let SERVEUR    = 'http://localhost:3000';
+let gameId     = null;
+let monJoueur  = null;   // 1 ou 2
+let versionVue = -1;     // dernière version de l'état vue
+let pollingId  = null;   // setInterval handle
+let etatLocal  = null;   // dernier état reçu du serveur
+
+let plateau       = [5,5,5,5,5,5,5, 5,5,5,5,5,5,5];
+let tourDe        = 1;
+let scores        = { 1: 0, 2: 0 };
+let noms          = { 1: 'Joueur 1', 2: 'Joueur 2' };
+let coupEnCours   = false;
+let grainesOffsets = Array.from({length: 14}, () => []);
+const reserveOffsets = { 1: [], 2: [] };
+
+// ── Audio ──────────────────────────────────────────────────────────────────
+const ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
+function jouerSon(vol = 0.5, pitch = 1) {
+  if (ctxAudio.state === 'suspended') ctxAudio.resume();
+  const osc = ctxAudio.createOscillator(), gain = ctxAudio.createGain();
+  osc.connect(gain); gain.connect(ctxAudio.destination);
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(540 * pitch, ctxAudio.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(80, ctxAudio.currentTime + 0.06);
+  gain.gain.setValueAtTime(vol, ctxAudio.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctxAudio.currentTime + 0.09);
+  osc.start(ctxAudio.currentTime); osc.stop(ctxAudio.currentTime + 0.09);
+}
+
+// ── API ────────────────────────────────────────────────────────────────────
+async function api(methode, chemin, corps) {
+  const opts = {
+    method  : methode,
+    headers : { 'Content-Type': 'application/json' }
+  };
+  if (corps) opts.body = JSON.stringify(corps);
+  const r = await fetch(SERVEUR + chemin, opts);
+  return r.json();
+}
+
+// ── Lobby : messages ───────────────────────────────────────────────────────
+function lobbyMsg(txt, type = '') {
+  const el = document.getElementById('lobby-msg');
+  el.textContent = txt;
+  el.className   = type;
+}
+
+// ── Créer une partie ───────────────────────────────────────────────────────
+document.getElementById('btn-creer').addEventListener('click', async () => {
+  const nom  = document.getElementById('lobby-nom').value.trim() || 'Joueur 1';
+  SERVEUR    = document.getElementById('lobby-serveur').value.trim() || 'http://localhost:3000';
+  lobbyMsg('Création en cours…');
+  try {
+    const data = await api('POST', '/creer', { nom });
+    if (data.err) return lobbyMsg(data.err, 'err');
+    gameId    = data.gameId;
+    monJoueur = 1;
+    noms[1]   = nom;
+    document.getElementById('code-valeur').textContent = gameId;
+    document.getElementById('code-bloc').classList.add('visible');
+    lobbyMsg('');
+    // Polling pour attendre J2
+    pollingId = setInterval(verifierEtat, 1500);
+  } catch(e) {
+    lobbyMsg('Impossible de joindre le serveur : ' + e.message, 'err');
+  }
+});
+
+// ── Rejoindre une partie ───────────────────────────────────────────────────
+document.getElementById('btn-rejoindre').addEventListener('click', async () => {
+  const nom  = document.getElementById('lobby-nom').value.trim() || 'Joueur 2';
+  const code = document.getElementById('lobby-code').value.trim().toUpperCase();
+  SERVEUR    = document.getElementById('lobby-serveur').value.trim() || 'http://localhost:3000';
+  if (!code) return lobbyMsg('Entrez le code de la partie.', 'err');
+  lobbyMsg('Connexion…');
+  try {
+    const data = await api('POST', '/rejoindre', { gameId: code, nom });
+    if (data.err) return lobbyMsg(data.err, 'err');
+    gameId    = code;
+    monJoueur = 2;
+    noms      = data.noms;
+    lancerJeu();
+  } catch(e) {
+    lobbyMsg('Impossible de joindre le serveur : ' + e.message, 'err');
+  }
+});
+
+// ── Vérifier l'état (polling lobby) ───────────────────────────────────────
+async function verifierEtat() {
+  if (!gameId) return;
+  try {
+    const data = await api('GET', '/etat/' + gameId);
+    if (data.err) return;
+    if (monJoueur === 1 && data.statut === 'en_cours' && data.noms[2]) {
+      noms = data.noms;
+      clearInterval(pollingId);
+      pollingId = null;
+      lancerJeu();
+      return;
+    }
+    // Mettre à jour l'état si déjà en jeu
+    if (data.version !== versionVue) {
+      versionVue = data.version;
+      appliquerEtat(data);
+    }
+  } catch(e) { majDotReseau('erreur'); }
+}
+
+// ── Lancer le jeu ─────────────────────────────────────────────────────────
+function lancerJeu() {
+  document.getElementById('ecran-lobby').classList.add('cache');
+  setTimeout(() => {
+    document.getElementById('ecran-jeu').classList.add('visible');
+    majBandeauReseau();
+    appliquerNoms();
+    rendrePlateau();
+    pollingId = setInterval(verifierEtat, 1000);
+  }, 500);
+}
+
+// ── Appliquer un état reçu du serveur ─────────────────────────────────────
+function appliquerEtat(data) {
+  plateau  = data.plateau;
+  tourDe   = data.tourDe;
+  scores   = data.scores;
+  if (data.noms) noms = data.noms;
+
+  if (data.message) afficherMessage(data.message);
+  else masquerAlerte();
+
+  coupEnCours = false;
+  appliquerNoms();
+  rendrePlateau();
+  majOverlayAttente();
+  majDotReseau('connecte');
+
+  if (data.statut === 'termine') {
+    clearInterval(pollingId);
+    terminerPartieUI(data);
+  }
+}
+
+// ── Overlay attente adversaire ─────────────────────────────────────────────
+function majOverlayAttente() {
+  const overlay = document.getElementById('overlay-attente');
+  const monTour = (tourDe === monJoueur);
+  if (!monTour) {
+    document.getElementById('attente-nom').textContent = `${noms[tourDe]} réfléchit…`;
+    overlay.classList.add('visible');
+  } else {
+    overlay.classList.remove('visible');
+  }
+}
+
+// ── Bandeau réseau ─────────────────────────────────────────────────────────
+function majBandeauReseau() {
+  document.getElementById('reseau-game-id').textContent   = gameId;
+  document.getElementById('reseau-joueur-label').textContent =
+    monJoueur === 1 ? `Joueur 1 (bas — ${noms[1]})` : `Joueur 2 (haut — ${noms[2]})`;
+  majDotReseau('connecte');
+}
+function majDotReseau(etat) {
+  const dot  = document.getElementById('reseau-dot');
+  const txt  = document.getElementById('reseau-texte');
+  dot.className = 'reseau-dot ' + etat;
+  txt.textContent = etat === 'connecte' ? 'Connecté' : etat === 'erreur' ? 'Erreur réseau' : 'Attente…';
+}
+
+// ── Clic sur une case ──────────────────────────────────────────────────────
+async function gererClicTrou(e) {
+  if (coupEnCours) return;
+  if (tourDe !== monJoueur) return;  // pas notre tour
+  const index = parseInt(e.currentTarget.getAttribute('data-index'));
+  if (plateau[index] === 0) return;
+  const zoneJ1 = index >= 0 && index <= 6;
+  const zoneJ2 = index >= 7 && index <= 13;
+  if (monJoueur === 1 && !zoneJ1) return;
+  if (monJoueur === 2 && !zoneJ2) return;
+
+  coupEnCours = true;
+  masquerAlerte();
+  jouerSon(0.65, 0.75);
+
+  try {
+    const data = await api('POST', '/jouer', { gameId, joueur: monJoueur, index });
+    if (data.err) {
+      afficherMessage(data.err);
+      coupEnCours = false;
+      return;
+    }
+    versionVue = data.version;
+    appliquerEtat(data);
+  } catch(err) {
+    afficherMessage('Erreur réseau. Réessayez.');
+    coupEnCours = false;
+    majDotReseau('erreur');
+  }
+}
+
+for (let i = 0; i <= 13; i++) {
+  document.getElementById(`trou-${i}`).addEventListener('click', gererClicTrou);
+}
+
+// ── Rejouer ────────────────────────────────────────────────────────────────
+document.getElementById('btn-reset').addEventListener('click', async () => {
+  if (!gameId) return;
+  const data = await api('POST', '/reset', { gameId });
+  if (data.ok) { document.getElementById('ecran-fin').classList.remove('visible'); verifierEtat(); }
+});
+document.getElementById('btn-fin-rejouer').addEventListener('click', async () => {
+  const data = await api('POST', '/reset', { gameId });
+  if (data.ok) { document.getElementById('ecran-fin').classList.remove('visible'); versionVue = -1; verifierEtat(); pollingId = pollingId || setInterval(verifierEtat, 1000); }
+});
+document.getElementById('btn-fin-accueil').addEventListener('click', () => {
+  clearInterval(pollingId); pollingId = null; gameId = null; monJoueur = null; versionVue = -1;
+  document.getElementById('ecran-fin').classList.remove('visible');
+  document.getElementById('ecran-jeu').classList.remove('visible');
+  document.getElementById('code-bloc').classList.remove('visible');
+  document.getElementById('lobby-nom').value = '';
+  document.getElementById('lobby-code').value = '';
+  lobbyMsg('');
+  setTimeout(() => document.getElementById('ecran-lobby').classList.remove('cache'), 100);
+});
+
+document.getElementById('btn-quitter-lobby').addEventListener('click', () => {
+  clearInterval(pollingId); pollingId = null; gameId = null;
+  document.getElementById('ecran-fin').classList.remove('visible');
+  document.getElementById('ecran-jeu').classList.remove('visible');
+  document.getElementById('code-bloc').classList.remove('visible');
+  lobbyMsg('');
+  setTimeout(() => document.getElementById('ecran-lobby').classList.remove('cache'), 100);
+});
+
+// ── Règles ─────────────────────────────────────────────────────────────────
+document.getElementById('btn-regles-jeu').addEventListener('click', () => document.getElementById('ecran-regles').classList.add('visible'));
+document.getElementById('btn-fermer-regles').addEventListener('click', () => document.getElementById('ecran-regles').classList.remove('visible'));
+document.getElementById('btn-fermer-regles-bas').addEventListener('click', () => document.getElementById('ecran-regles').classList.remove('visible'));
+document.getElementById('ecran-regles').addEventListener('click', e => { if (e.target === document.getElementById('ecran-regles')) document.getElementById('ecran-regles').classList.remove('visible'); });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// RENDU
+// ══════════════════════════════════════════════════════════════════════════════
+
+function appliquerNoms() {
+  document.getElementById('fait-par-nom').textContent      = noms[monJoueur] || '—';
+  document.getElementById('mode-label-noms').textContent   = `${noms[2]} (Haut) vs ${noms[1]} (Bas)`;
+  document.getElementById('score-nom-j1').textContent      = `${noms[1]} (Bas)`;
+  document.getElementById('score-nom-j2').textContent      = `${noms[2]} (Haut)`;
+  document.getElementById('legende-haut-nom').textContent  = noms[2];
+  document.getElementById('legende-bas-nom').textContent   = noms[1];
+  document.getElementById('reserve-label-j1').innerHTML    = `${noms[1]}<br>captures`;
+  document.getElementById('reserve-label-j2').innerHTML    = `${noms[2]}<br>captures`;
+}
+
+function genererOffsets(index, nb) {
+  while (grainesOffsets[index].length < nb) {
+    grainesOffsets[index].push({
+      x: Math.floor(Math.random() * 36) - 18,
+      y: Math.floor(Math.random() * 24) - 12,
+      rot: Math.floor(Math.random() * 360)
+    });
+  }
+}
+
+function getReserveOffset(joueur, i) {
+  while (reserveOffsets[joueur].length <= i) {
+    reserveOffsets[joueur].push({
+      ox: (Math.random() * 6 - 3).toFixed(1),
+      oy: (Math.random() * 6 - 3).toFixed(1),
+      rot: Math.floor(Math.random() * 360)
+    });
+  }
+  return reserveOffsets[joueur][i];
+}
+
+function rendreReserve(joueur) {
+  const total   = scores[joueur];
+  const countEl = document.getElementById(`reserve-count-j${joueur}`);
+  const billesEl= document.getElementById(`reserve-billes-j${joueur}`);
+  if (countEl) countEl.textContent = total;
+  if (!billesEl) return;
+  const visible = Math.min(total, 36);
+  let html = '';
+  for (let i = 0; i < visible; i++) {
+    const o = getReserveOffset(joueur, i);
+    html += `<div class="bille-visuelle" style="transform:translate(${o.ox}px,${o.oy}px) rotate(${o.rot}deg);"></div>`;
+  }
+  billesEl.innerHTML = html;
+}
+
+function rendrePlateau() {
+  plateau.forEach((graines, index) => {
+    const el     = document.getElementById(`trou-${index}`);
+    const estJ1  = index >= 0 && index <= 6;
+    const estJ2  = index >= 7 && index <= 13;
+    const monTour= (tourDe === monJoueur);
+    const jouable= monTour && !coupEnCours && graines > 0 &&
+      ((monJoueur === 1 && estJ1) || (monJoueur === 2 && estJ2));
+    const prot   = (index === 0 || index === 13);
+
+    el.className = 'trou' + (prot ? ' protegee' : '');
+    if (jouable) el.classList.add(tourDe === 1 ? 'jouable-j1' : 'jouable-j2');
+
+    genererOffsets(index, graines);
+    let billesHTML = '';
+    for (let i = 0; i < graines; i++) {
+      const o = grainesOffsets[index][i] || { x: 0, y: 0, rot: 0 };
+      billesHTML += `<div class="bille-visuelle" style="transform:translate(${o.x}px,${o.y}px) rotate(${o.rot}deg);"></div>`;
+    }
+    el.innerHTML = `
+      <div class="graines-wrapper">${billesHTML}</div>
+      <div class="compteur">${graines}</div>
+      ${prot ? '<div class="label-c1">C1</div>' : ''}
+    `;
+  });
+
+  document.getElementById('score-j1').textContent = scores[1];
+  document.getElementById('score-j2').textContent = scores[2];
+  rendreReserve(1);
+  rendreReserve(2);
+
+  const st = document.getElementById('statut-tour');
+  if (tourDe === monJoueur) {
+    st.textContent = `↓ Votre tour (${noms[monJoueur]})`;
+    st.style.color = '#f5c040';
+  } else {
+    const adv = monJoueur === 1 ? 2 : 1;
+    st.textContent = `⏳ Tour de ${noms[adv]}…`;
+    st.style.color = '#60b8f0';
+  }
+}
+
+function afficherMessage(txt) {
+  const el = document.getElementById('alerte-jeu');
+  el.textContent = txt; el.style.display = 'block';
+}
+function masquerAlerte() {
+  document.getElementById('alerte-jeu').style.display = 'none';
+}
+
+// ── Fin de partie côté UI ──────────────────────────────────────────────────
+function terminerPartieUI(data) {
+  const gagnant = data.gagnant;
+  const estNul  = gagnant === 0;
+
+  document.getElementById('fin-icone').textContent = estNul ? '🤝' : '🏆';
+  document.getElementById('fin-titre').textContent = estNul ? 'Match Nul !' : `${noms[gagnant]} Gagne !`;
+  document.getElementById('fin-raison').textContent= data.raison;
+  document.getElementById('fin-nom-j1').textContent= noms[1];
+  document.getElementById('fin-nom-j2').textContent= noms[2];
+  document.getElementById('fin-val-j1').textContent= scores[1];
+  document.getElementById('fin-val-j2').textContent= scores[2];
+
+  const b1 = document.getElementById('fin-bloc-j1');
+  const b2 = document.getElementById('fin-bloc-j2');
+  b1.className = 'fin-score-bloc ' + (estNul ? 'nul' : gagnant===1?'gagnant':'perdant');
+  b2.className = 'fin-score-bloc ' + (estNul ? 'nul' : gagnant===2?'gagnant':'perdant');
+
+  document.querySelectorAll('.fin-couronne').forEach(e => e.remove());
+  if (!estNul) {
+    const c = document.createElement('div');
+    c.className = 'fin-couronne'; c.textContent = '👑';
+    document.getElementById(`fin-bloc-j${gagnant}`).appendChild(c);
+  }
+
+  const deco = document.getElementById('fin-billes-deco');
+  deco.innerHTML = '';
+  for (let i = 0; i < 18; i++) {
+    const b = document.createElement('div');
+    b.className = 'fin-bille-deco';
+    b.style.cssText = `left:${5+Math.random()*90}%;bottom:-20px;animation-duration:${4+Math.random()*6}s;animation-delay:${Math.random()*5}s;`;
+    deco.appendChild(b);
+  }
+
+  setTimeout(() => document.getElementById('ecran-fin').classList.add('visible'), 400);
+}
+</script>
+</body>
+</html>
